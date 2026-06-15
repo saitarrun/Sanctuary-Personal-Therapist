@@ -12,7 +12,6 @@ export function LiveCaption({
 }) {
   const displaySource = interim || userFinal;
   const content = displaySource || lastReply || "Speak when you’re ready — I’m listening.";
-  const isHint = !displaySource && !lastReply;
 
   // Get only the last 2 sentences
   const getLastTwoSentences = (text: string) => {
