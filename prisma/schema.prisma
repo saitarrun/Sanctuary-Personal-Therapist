@@ -15,6 +15,247 @@ enum Role {
   system
 }
 
+enum AuthMethod {
+  EMAIL
+  GOOGLE
+  GITHUB
+}
+
+enum ConsentType {
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+  RESEARCH_SHARING
+  MARKETING_EMAILS
+}
+
+enum PrivacyLevel {
+  PUBLIC
+  PRIVATE
+  RESEARCH_ONLY
+}
+
+// Phase 6: User Profiles & Privacy (HIPAA-compliant)
+model User {
+  id                String           @id @default(cuid())
+  email             String           @unique
+  // Phase 5: Authentication
+  emailVerified     Boolean          @default(false)
+  hashedPassword    String?          // NULL for OAuth-only accounts
+  authMethod        AuthMethod       @default(EMAIL)
+  // PII fields — encrypted at rest via Prisma middleware
+  firstName         String?
+  lastName          String?
+  dateOfBirth       String?          // Encrypted (ISO 8601 date)
+  phone             String?          // Encrypted
+  // JSON preferences: notifications, theme, language, etc.
+  preferences       Json             @default("{}")
+  // Consent and privacy settings
+  privacySettings   PrivacySettings?
+  consentLogs       ConsentLog[]
+  userProfile       UserProfile?
+  // Session relationship for multi-device support (Phase 7)
+  sessions          AuthSession[]
+  // Phase 7: Token blacklist for revoked tokens
+  tokenBlacklist    TokenBlacklist[] @relation("TokenBlacklist")
+  // Phase 5: OAuth accounts
+  oauthAccounts     OAuthAccount[]
+  // Audit logs
+  auditLogs         AuditLog[]
+  // Timestamps
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?        // Soft delete support
+  hardDeleteAt      DateTime?        // Hard delete scheduled for 30 days later
+
+  @@index([email])
+  @@index([deletedAt])
+}
+
+model UserProfile {
+  id                String           @id @default(cuid())
+  userId            String           @unique
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Profile info
+  bio               String?          @db.Text
+  avatar            String?          // URL or base64 data
+  // Privacy level: PUBLIC (searchable), PRIVATE (hidden), RESEARCH_ONLY (anonymized data only)
+  privacyLevel      PrivacyLevel     @default(PRIVATE)
+  // Profile timestamps
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([userId])
+}
+
+model PrivacySettings {
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Data collection preferences
+  dataCollectionOptIn       Boolean  @default(true)
+  // Allow data to be used for research (anonymized)
+  shareWithResearch         Boolean  @default(false)
+  // Allow marketing emails
+  marketingEmails           Boolean  @default(false)
+  // Timestamps
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ConsentLog {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Type of consent: TERMS, PRIVACY_POLICY, RESEARCH, MARKETING
+  consentType       ConsentType
+  // Version of the policy (e.g., "v1.0", "v1.1")
+  version           String
+  // Whether user consented (true) or withdrew consent (false)
+  consented         Boolean
+  // IP address (anonymized, last octet zeroed)
+  ipAddress         String?
+  // User agent for audit trail
+  userAgent         String?      @db.Text
+  // Timestamp when consent was given/withdrawn
+  givenAt           DateTime     @default(now())
+
+  @@index([userId, consentType])
+  @@index([givenAt])
+}
+
+model AuditLog {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // What action was performed: "DATA_ACCESS", "DATA_MODIFICATION", "PROFILE_UPDATE", "EXPORT", "DELETE"
+  action            String
+  // What resource was accessed/modified: "profile", "email", "phone", "chat_history", "account"
+  resourceType      String
+  // Old value (anonymized or hashed if sensitive)
+  oldValue          String?      @db.Text
+  // New value (anonymized or hashed if sensitive)
+  newValue          String?      @db.Text
+  // Who performed the action: user email or "SYSTEM"
+  performedBy       String
+  // IP address (anonymized, last octet zeroed)
+  ipAddress         String?
+  // User agent for additional context
+  userAgent         String?      @db.Text
+  // Reason for the action (e.g., "user_request", "privacy_update", "data_export")
+  reason            String?
+  // Status: "SUCCESS", "FAILURE"
+  status            String       @default("SUCCESS")
+  // Any error message if status is FAILURE
+  errorMessage      String?
+  // Timestamp (immutable after creation — append-only log)
+  createdAt         DateTime     @default(now())
+
+  @@index([userId, action])
+  @@index([createdAt])
+  @@index([performedBy])
+}
+
+model OAuthAccount {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String    // "google" or "github"
+  providerUserId    String
+  accessToken       String?   @db.Text
+  refreshToken      String?   @db.Text
+  expiresAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model AuthSession {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Phase 5: JWT token for API authentication (being replaced by token hashes in Phase 7)
+  token             String?      @unique @db.Text // Legacy: JWT access token (will be removed)
+  // Phase 7: Token hashes (secure, never store plaintext tokens)
+  accessTokenHash   String?      // Hash of current JWT access token (short-lived)
+  refreshTokenHash  String?      @unique // Hash of refresh token (long-lived)
+  // Device info (anonymized)
+  deviceName        String?      // "Chrome on Windows", "Safari on iOS"
+  deviceType        String?      // "desktop", "mobile", "tablet"
+  // Location (anonymized — country/city only, no exact coords)
+  country           String?
+  city              String?
+  // IP address (anonymized, last octet zeroed)
+  ipAddress         String?
+  // Phase 7: Full IP for security analysis (can be encrypted in production)
+  ipAddressFull     String?
+  // Phase 7: CSRF token for this session
+  csrfToken         CSRFToken?
+  // Last activity timestamp
+  lastActivityAt    DateTime     @default(now())
+  // Session expiry (absolute timeout: 7 days)
+  expiresAt         DateTime
+  // Phase 7: Refresh token expiry (configurable, default 14 days)
+  refreshExpiresAt  DateTime?
+  // Is session active/revoked
+  isRevoked         Boolean      @default(false)
+  // Phase 7: Explicit revocation metadata
+  revokedAt         DateTime?    // When session was revoked
+  revokeReason      String?      // "logout", "suspicious_activity", "device_removed", "timeout"
+  // Timestamps
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([userId, expiresAt])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([refreshExpiresAt])
+  @@index([isRevoked])
+  @@index([refreshTokenHash])
+  @@index([revokedAt])
+}
+
+// Phase 7: Token blacklist for revoked tokens (logout, suspicious activity, etc.)
+model TokenBlacklist {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation("TokenBlacklist", fields: [userId], references: [id], onDelete: Cascade)
+  // Token information
+  tokenHash         String       @unique // Hash of revoked token
+  tokenType         String       // "access" or "refresh"
+  // Why was it revoked?
+  reason            String?      // "logout", "refresh_rotation", "suspicious_activity", "session_revoked"
+  // When it was revoked
+  revokedAt         DateTime     @default(now())
+  // Timestamps
+  createdAt         DateTime     @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([tokenHash])
+  @@index([revokedAt]) // For cleanup of old blacklist entries
+}
+
+// Phase 7: CSRF token per session (for state-changing requests)
+model CSRFToken {
+  id                String       @id @default(cuid())
+  sessionId         String       @unique
+  session           AuthSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  // Token information
+  token             String       @unique // Hash of CSRF token
+  // Expiration (typically 1 hour)
+  expiresAt         DateTime
+  // Issued when
+  createdAt         DateTime     @default(now())
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@index([token])
+}
+
+// Chat session for conversation history
 model Session {
   id        String    @id @default(cuid())
   title     String?

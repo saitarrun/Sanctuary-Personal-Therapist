@@ -25,6 +25,30 @@ const schema = z.object({
   ELEVENLABS_API_KEY: z.string().optional(),
   ELEVENLABS_VOICE_ID: z.string().default("RDWdsTU6N02BFftbIEAp"),
   ELEVENLABS_MODEL: z.string().default("eleven_turbo_v2_5"),
+
+  // Rate limiting configuration (Phase 3 abuse prevention)
+  RATE_LIMIT_ENABLED: z.enum(["true", "false"]).default("true"),
+  RATE_LIMIT_MESSAGE_PER_MIN: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
+  RATE_LIMIT_SESSION_PER_HOUR: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10),
+  RATE_LIMIT_IP_PER_HOUR: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100),
+
+  // Phase 4: Performance Optimization
+  DATABASE_URL_POOL_SIZE: z.coerce.number().int().min(2).max(20).default(10),
+  RAG_CACHE_TTL: z.coerce.number().int().positive().default(1800), // 30 minutes
+  RAG_TIMEOUT: z.coerce.number().int().positive().default(2000), // 2 seconds
+  MAX_MESSAGE_HISTORY: z.coerce.number().int().min(10).max(30).default(30),
 });
 
 let cached: z.infer<typeof schema> | null = null;

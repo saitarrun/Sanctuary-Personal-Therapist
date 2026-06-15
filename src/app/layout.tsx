@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RootLayoutWrapper } from "@/components/RootLayoutWrapper";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,7 +25,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <RootLayoutWrapper>{children}</RootLayoutWrapper>
+      </body>
     </html>
   );
 }

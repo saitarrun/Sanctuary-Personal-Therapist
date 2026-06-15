@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { FrameRateLimiter, GPUMemoryMonitor } from "@/lib/webgl/shaderOptimizer";
+import { getMonitor } from "@/lib/performance/monitor";
 
 export function BackgroundShader() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRateLimiter = useRef(
+    new FrameRateLimiter(
+      parseInt(process.env.NEXT_PUBLIC_SHADER_MAX_FPS ?? "60", 10)
+    )
+  ).current;
+  const gpuMonitor = useRef(
+    new GPUMemoryMonitor(
+      parseInt(process.env.NEXT_PUBLIC_SHADER_MEMORY_WARNING ?? "500", 10)
+    )
+  ).current;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -162,13 +174,36 @@ export function BackgroundShader() {
     window.addEventListener("mousemove", handleMouseMove);
 
     let raf: number;
+    let frameStartTime: number = 0;
+
     function render(t: number) {
       if (!canvas || !gl) return;
+
+      // Phase 4: Frame rate limiting for performance
+      if (!frameRateLimiter.shouldRender(t)) {
+        raf = requestAnimationFrame(render);
+        return;
+      }
+
+      frameStartTime = performance.now();
+
       gl.viewport(0, 0, canvas.width, canvas.height);
       if (uTime) gl.uniform1f(uTime, t * 0.001);
       if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
       if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      // Phase 4: Track render time (10% sampling to minimize overhead)
+      if (Math.random() < 0.1) {
+        const elapsedMs = performance.now() - frameStartTime;
+        getMonitor().recordShaderRenderTime(elapsedMs);
+      }
+
+      // Phase 4: Check GPU memory periodically
+      if (Math.floor(t / 16) % 300 === 0) {
+        gpuMonitor.checkMemory();
+      }
+
       raf = requestAnimationFrame(render);
     }
     raf = requestAnimationFrame(render);
