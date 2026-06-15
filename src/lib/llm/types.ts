@@ -20,9 +20,18 @@ export interface ChatResult {
   provider: ProviderName;
 }
 
+export interface ChatStream {
+  /** Async iterator over text chunks. */
+  iterator: AsyncIterableIterator<string>;
+  model: string;
+  provider: ProviderName;
+}
+
 export type ProviderName = "openrouter" | "claude-cli";
 
 export interface ChatProvider {
   readonly name: ProviderName;
   chat(req: ChatRequest): Promise<ChatResult>;
+  /** Returns an async iterator that yields text as it arrives. */
+  stream(req: ChatRequest): Promise<ChatStream>;
 }

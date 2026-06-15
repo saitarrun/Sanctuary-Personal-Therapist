@@ -17,21 +17,9 @@ export default async function SessionPage({
   if (!session) notFound();
 
   return (
-    <>
-      <header className="app-header">
-        <strong>Personal Psychologist</strong>
-        <span>Solution-focused coaching · voice</span>
-      </header>
-
-      <main>
-        <VoiceSession sessionId={session.id} />
-      </main>
-
-      <p className="disclaimer">
-        This is an AI coaching companion, not a licensed therapist or a crisis
-        service. If you’re in danger or crisis, contact local emergency services
-        or a crisis line.
-      </p>
-    </>
+    <main>
+      <VoiceSession sessionId={session.id} />
+    </main>
   );
 }
+

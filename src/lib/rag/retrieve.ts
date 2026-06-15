@@ -64,12 +64,14 @@ export async function retrieve(
 
 /**
  * Formats retrieved chunks into a single reference block for the system prompt.
- * Numbered for the model's own bookkeeping only — the prompt forbids reading
- * these aloud.
+ * Contextualizes each chunk by prepending its document title and source.
  */
 export function formatReferenceBlock(chunks: RetrievedChunk[]): string {
   if (chunks.length === 0) return "";
   return chunks
-    .map((c, i) => `[${i + 1}] ${c.content}`)
+    .map(
+      (c, i) =>
+        `[${i + 1}] Source: "${c.title}" (${c.source})\nContent: ${c.content}`
+    )
     .join("\n\n");
 }

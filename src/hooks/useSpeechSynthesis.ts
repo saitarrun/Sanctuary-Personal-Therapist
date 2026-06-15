@@ -10,17 +10,69 @@ export interface UseSpeechSynthesis {
   cancel: () => void;
 }
 
+// Soothing delivery: a touch slower than natural speech, with a slightly
+// lower, warmer pitch and a gentle volume.
+const SOOTHING_RATE = 0.9;
+const SOOTHING_PITCH = 0.92;
+const SOOTHING_VOLUME = 0.95;
+
+// Warm, calm-sounding voices known to be pleasant for a coaching tone, in
+// rough order of preference. Apple's Enhanced/Premium variants and the major
+// neural voices sound markedly more natural than the default robotic ones.
+const SOOTHING_VOICE_NAMES = [
+  "samantha",
+  "ava",
+  "allison",
+  "serena",
+  "zoe",
+  "nora",
+  "karen",
+  "moira",
+  "fiona",
+  "aria",
+  "jenny",
+  "libby",
+  "sonia",
+];
+
+// Preferred voice, in priority order. The first one the browser actually
+// exposes wins; if none are present we fall back to the scoring heuristic below.
+const PINNED_VOICE_NAMES = ["Google UK English Female"];
+
 /**
- * Picks a pleasant English voice, preferring natural-sounding local voices.
+ * Picks the coach's voice. Prefers an explicitly pinned voice when the browser
+ * exposes it; otherwise scores each English voice by audio quality markers
+ * (Enhanced/Premium/Neural/Natural) and how warm/calm the named voice tends to
+ * sound, falling back to any English voice.
  */
 function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null;
+
+  for (const name of PINNED_VOICE_NAMES) {
+    const pinned = voices.find((v) => v.name === name);
+    if (pinned) return pinned;
+  }
+
   const en = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
   const pool = en.length ? en : voices;
-  const preferred = pool.find((v) =>
-    /natural|google|samantha|aria|jenny|libby/i.test(v.name)
-  );
-  return preferred ?? pool[0];
+
+  const score = (v: SpeechSynthesisVoice): number => {
+    const name = v.name.toLowerCase();
+    let s = 0;
+    // High-quality, natural-sounding engines.
+    if (/(enhanced|premium|neural|natural)/.test(name)) s += 40;
+    if (/google/.test(name)) s += 20;
+    // Named warm/calm voices — earlier in the list scores higher.
+    const idx = SOOTHING_VOICE_NAMES.findIndex((n) => name.includes(n));
+    if (idx !== -1) s += 30 - idx;
+    // Prefer local voices: lower latency, no network artifacts.
+    if (v.localService) s += 5;
+    // Mild preference for en-US / en-GB phrasing.
+    if (/^en-(us|gb)/i.test(v.lang)) s += 3;
+    return s;
+  };
+
+  return [...pool].sort((a, b) => score(b) - score(a))[0];
 }
 
 export function useSpeechSynthesis(): UseSpeechSynthesis {
@@ -54,8 +106,9 @@ export function useSpeechSynthesis(): UseSpeechSynthesis {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     if (voiceRef.current) utterance.voice = voiceRef.current;
-    utterance.rate = 1;
-    utterance.pitch = 1;
+    utterance.rate = SOOTHING_RATE;
+    utterance.pitch = SOOTHING_PITCH;
+    utterance.volume = SOOTHING_VOLUME;
     let finished = false;
     const done = () => {
       if (finished) return;

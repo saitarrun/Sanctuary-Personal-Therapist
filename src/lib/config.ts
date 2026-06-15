@@ -18,6 +18,13 @@ const schema = z.object({
 
   EMBEDDING_MODEL: z.string().default("Xenova/bge-small-en-v1.5"),
   RAG_TOP_K: z.coerce.number().int().positive().default(6),
+
+  // ElevenLabs text-to-speech (optional). When ELEVENLABS_API_KEY is set, the
+  // coach speaks with this cloud voice; otherwise it falls back to the
+  // browser's built-in speech synthesis.
+  ELEVENLABS_API_KEY: z.string().optional(),
+  ELEVENLABS_VOICE_ID: z.string().default("RDWdsTU6N02BFftbIEAp"),
+  ELEVENLABS_MODEL: z.string().default("eleven_turbo_v2_5"),
 });
 
 let cached: z.infer<typeof schema> | null = null;

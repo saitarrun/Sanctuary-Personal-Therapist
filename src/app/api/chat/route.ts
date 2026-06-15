@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  // 1. Safety heuristic on the incoming transcript (before the model runs).
+  // 1. Safety heuristic on the incoming transcript.
   const crisis = detectCrisis(message);
 
   // 2. Persist the user's message.
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // 3. Retrieve grounding passages (degrades to none if corpus is empty).
+  // 3. Retrieve grounding passages.
   const chunks = await retrieve(message);
 
   // 4. Assemble prompt + recent history.
@@ -66,15 +66,66 @@ export async function POST(req: NextRequest) {
     .filter((m) => m.role !== "system")
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  // 5. Generate the spoken reply.
-  let reply: string;
-  let providerName: string;
-  let model: string;
+  // 5. Initialize the stream from the provider.
   try {
-    const result = await getProvider().chat({ system, messages });
-    reply = result.content;
-    providerName = result.provider;
-    model = result.model;
+    const stream = await getProvider().stream({ system, messages });
+
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        // Send initial metadata (sources, crisis flag).
+        const meta = {
+          type: "metadata",
+          crisis: crisis.triggered,
+          resources: crisis.triggered ? CRISIS_RESOURCES : undefined,
+          sources: chunks.map((c) => ({
+            title: c.title,
+            authors: c.authors,
+            url: c.url,
+            source: c.source,
+            similarity: Number(c.similarity?.toFixed?.(3) ?? c.similarity),
+          })),
+        };
+        controller.enqueue(encoder.encode(JSON.stringify(meta) + "\n"));
+
+        let fullContent = "";
+        for await (const chunk of stream.iterator) {
+          fullContent += chunk;
+          controller.enqueue(
+            encoder.encode(JSON.stringify({ type: "chunk", content: chunk }) + "\n")
+          );
+        }
+
+        // 6. Finalize: Persist assistant reply + session updates.
+        // We do this inside the stream completion so it's consistent.
+        await prisma.message.create({
+          data: {
+            sessionId,
+            role: "assistant",
+            content: fullContent,
+            provider: stream.provider,
+            model: stream.model,
+            sources: {
+              create: chunks.map((c) => ({ chunkId: c.chunkId })),
+            },
+          },
+        });
+
+        await prisma.session.update({
+          where: { id: sessionId },
+          data: {
+            updatedAt: new Date(),
+            ...(session.title ? {} : { title: deriveTitle(message) }),
+          },
+        });
+
+        controller.close();
+      },
+    });
+
+    return new Response(readable, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
   } catch (err) {
     console.error("[chat] provider error:", err);
     return NextResponse.json(
@@ -82,43 +133,6 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
-
-  // 6. Persist the assistant reply + which chunks grounded it.
-  const assistant = await prisma.message.create({
-    data: {
-      sessionId,
-      role: "assistant",
-      content: reply,
-      provider: providerName,
-      model,
-      sources: {
-        create: chunks.map((c) => ({ chunkId: c.chunkId })),
-      },
-    },
-  });
-
-  // 7. Title the session from the first user message, and bump updatedAt.
-  await prisma.session.update({
-    where: { id: sessionId },
-    data: {
-      updatedAt: new Date(),
-      ...(session.title ? {} : { title: deriveTitle(message) }),
-    },
-  });
-
-  return NextResponse.json({
-    messageId: assistant.id,
-    reply,
-    crisis: crisis.triggered,
-    resources: crisis.triggered ? CRISIS_RESOURCES : undefined,
-    sources: chunks.map((c) => ({
-      title: c.title,
-      authors: c.authors,
-      url: c.url,
-      source: c.source,
-      similarity: Number(c.similarity?.toFixed?.(3) ?? c.similarity),
-    })),
-  });
 }
 
 function deriveTitle(text: string): string {

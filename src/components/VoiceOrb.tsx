@@ -4,16 +4,9 @@ import { useEffect, useRef } from "react";
 
 export type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
-const STATE_COLORS: Record<OrbState, [string, string]> = {
-  idle: ["#3b4a6b", "#1e2740"],
-  listening: ["#22d3ee", "#0e7490"],
-  thinking: ["#a78bfa", "#6d28d9"],
-  speaking: ["#34d399", "#047857"],
-};
-
 /**
- * Animated presence orb. Pulses gently by default and reacts to `amplitude`
- * (0..1, mic level while listening) and the conversation `state`.
+ * Soothing wave-based presence indicator.
+ * Oscillates gently using multi-layered translucent waves for a meditative feel.
  */
 export function VoiceOrb({
   state,
@@ -45,53 +38,63 @@ export function VoiceOrb({
     let t = 0;
 
     const draw = () => {
-      t += 0.016;
+      t += 0.012;
       const s = stateRef.current;
-      const [inner, outer] = STATE_COLORS[s];
       const cx = size / 2;
       const cy = size / 2;
 
       ctx.clearRect(0, 0, size, size);
 
-      // Breathing baseline + state energy + live amplitude.
-      const breathe = Math.sin(t * 1.4) * 0.04;
-      const energy =
-        s === "thinking"
-          ? 0.06 + Math.abs(Math.sin(t * 4)) * 0.05
-          : s === "speaking"
-          ? 0.1 + Math.abs(Math.sin(t * 9)) * 0.12
-          : s === "listening"
-          ? 0.05 + ampRef.current * 0.35
-          : 0.02;
-      const radius = 70 * (1 + breathe + energy);
+      // Smooth breathing for the glow and pulse
+      const breathe = Math.sin(t * 0.5) * 0.05;
+      const energy = s === "listening" ? ampRef.current * 0.6 : 
+                    s === "speaking" ? 0.15 + Math.abs(Math.sin(t * 4)) * 0.1 :
+                    s === "thinking" ? 0.05 + Math.abs(Math.sin(t * 2)) * 0.05 : 0;
 
-      // Outer glow.
-      const glow = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius * 1.9);
-      glow.addColorStop(0, `${inner}55`);
-      glow.addColorStop(1, "#00000000");
-      ctx.fillStyle = glow;
+      const baseRadius = 100; // Larger fixed radius for the circle
+      const scale = 1 + breathe + energy * 0.1;
+      const orbRadius = baseRadius * scale;
+
+      // 1. Large Outer Bloom (Atmospheric)
+      const bloomRadius = orbRadius * 2.2;
+      const bloomGlow = ctx.createRadialGradient(cx, cy, orbRadius * 0.8, cx, cy, bloomRadius);
+      const bloomOpacity = 0.08 + energy * 0.15;
+      bloomGlow.addColorStop(0, `rgba(111, 238, 225, ${bloomOpacity})`);
+      bloomGlow.addColorStop(1, "rgba(111, 238, 225, 0)");
+      ctx.fillStyle = bloomGlow;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.9, 0, Math.PI * 2);
+      ctx.arc(cx, cy, bloomRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Core orb.
-      const core = ctx.createRadialGradient(
-        cx - radius * 0.3,
-        cy - radius * 0.3,
-        radius * 0.2,
-        cx,
-        cy,
-        radius
-      );
-      core.addColorStop(0, inner);
-      core.addColorStop(1, outer);
-      ctx.fillStyle = core;
+      // 2. Inner Diffused Glow
+      const innerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbRadius);
+      innerGlow.addColorStop(0, `rgba(111, 238, 225, ${0.1 + energy * 0.2})`);
+      innerGlow.addColorStop(0.6, `rgba(79, 209, 197, 0.05)`);
+      innerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = innerGlow;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.arc(cx, cy, orbRadius, 0, Math.PI * 2);
       ctx.fill();
+
+      // 3. Crisp Outer Stroke
+      ctx.beginPath();
+      ctx.arc(cx, cy, orbRadius, 0, Math.PI * 2);
+      const strokeOpacity = 0.3 + energy * 0.4;
+      ctx.strokeStyle = `rgba(111, 238, 225, ${strokeOpacity})`;
+      ctx.lineWidth = 1 + energy * 1.5;
+      ctx.stroke();
+
+      // 4. Subtle Shimmer Line (Inner)
+      ctx.beginPath();
+      ctx.arc(cx, cy, orbRadius - 2, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.05 + energy * 0.1})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
 
       raf = requestAnimationFrame(draw);
     };
+
+
     draw();
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -99,8 +102,14 @@ export function VoiceOrb({
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: 280, height: 280 }}
+      style={{
+        display: "block",
+        width: 280,
+        height: 280,
+        background: "transparent",
+      }}
       aria-hidden="true"
     />
   );
 }
+

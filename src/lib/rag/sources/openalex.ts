@@ -135,6 +135,9 @@ const STANFORD_ROR = "https://ror.org/00f54p054";
 // Psychology subject concept (OpenAlex concept "Psychology").
 const PSYCHOLOGY_CONCEPT = "C15744967";
 
+// OpenAlex author id for Andrew D. Huberman (Stanford neuroscience).
+const HUBERMAN_AUTHOR = "A5052893931";
+
 export const harvardConnector = new OpenAlexConnector({
   id: "harvard",
   label: "Harvard",
@@ -157,4 +160,10 @@ export const psychologyConnector = new OpenAlexConnector({
   id: "psychology",
   label: "Psychology (subject)",
   baseFilter: `concepts.id:${PSYCHOLOGY_CONCEPT}`,
+});
+
+export const hubermanConnector = new OpenAlexConnector({
+  id: "huberman",
+  label: "Andrew Huberman (research)",
+  baseFilter: `authorships.author.id:${HUBERMAN_AUTHOR}`,
 });

@@ -1,7 +1,13 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { getConfig } from "@/lib/config";
-import type { ChatMessage, ChatProvider, ChatRequest, ChatResult } from "./types";
+import type {
+  ChatMessage,
+  ChatProvider,
+  ChatRequest,
+  ChatResult,
+  ChatStream,
+} from "./types";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,18 +23,7 @@ export class ClaudeCliProvider implements ChatProvider {
 
   async chat(req: ChatRequest): Promise<ChatResult> {
     const cfg = getConfig();
-    const transcript = renderTranscript(req.messages);
-
-    // Args passed as an array (never a shell string) so user text can't inject
-    // shell commands.
-    const args = [
-      "-p",
-      transcript,
-      "--append-system-prompt",
-      req.system,
-      "--model",
-      cfg.CLAUDE_CLI_MODEL,
-    ];
+    const args = this.getArgs(cfg, req);
 
     let stdout: string;
     try {
@@ -48,6 +43,37 @@ export class ClaudeCliProvider implements ChatProvider {
     }
 
     return { content, model: cfg.CLAUDE_CLI_MODEL, provider: this.name };
+  }
+
+  async stream(req: ChatRequest): Promise<ChatStream> {
+    const cfg = getConfig();
+    const args = this.getArgs(cfg, req);
+    const proc = spawn("claude", args);
+
+    const iterator = (async function* () {
+      const decoder = new TextDecoder();
+      for await (const chunk of proc.stdout) {
+        yield decoder.decode(chunk);
+      }
+    })();
+
+    return {
+      iterator,
+      model: cfg.CLAUDE_CLI_MODEL,
+      provider: this.name,
+    };
+  }
+
+  private getArgs(cfg: ReturnType<typeof getConfig>, req: ChatRequest) {
+    const transcript = renderTranscript(req.messages);
+    return [
+      "-p",
+      transcript,
+      "--append-system-prompt",
+      req.system,
+      "--model",
+      cfg.CLAUDE_CLI_MODEL,
+    ];
   }
 }
 

@@ -6,6 +6,7 @@ import {
   stanfordConnector,
   journalsConnector,
   psychologyConnector,
+  hubermanConnector,
 } from "./openalex";
 import type { Connector } from "./types";
 
@@ -20,6 +21,8 @@ export const CONNECTORS: Record<string, Connector> = {
   // Curated open-access psychology journals + the psychology subject as a whole
   journals: journalsConnector,
   psychology: psychologyConnector,
+  // Researcher-specific output (via OpenAlex author id, open access only)
+  huberman: hubermanConnector,
 };
 
 export function getConnector(id: string): Connector {
