@@ -1,12 +1,25 @@
 import { DoajConnector } from "./doaj";
 import { EuropePmcConnector } from "./europepmc";
 import { OpenTextbooksConnector } from "./openTextbooks";
+import {
+  harvardConnector,
+  stanfordConnector,
+  journalsConnector,
+  psychologyConnector,
+} from "./openalex";
 import type { Connector } from "./types";
 
 export const CONNECTORS: Record<string, Connector> = {
+  // Aggregator / repository sources
   europepmc: new EuropePmcConnector(),
   doaj: new DoajConnector(),
   openTextbook: new OpenTextbooksConnector(),
+  // Institution research output (via OpenAlex, open access only)
+  harvard: harvardConnector,
+  stanford: stanfordConnector,
+  // Curated open-access psychology journals + the psychology subject as a whole
+  journals: journalsConnector,
+  psychology: psychologyConnector,
 };
 
 export function getConnector(id: string): Connector {
