@@ -85,13 +85,38 @@ fetches **open-access** material, chunks it, embeds it locally, and stores it.
 npm run ingest -- --source europepmc --query "cognitive behavioral therapy" --limit 25
 npm run ingest -- --source doaj --query "anxiety coping strategies" --limit 50
 
+# University research output (open access, via OpenAlex)
+npm run ingest -- --source harvard --query "wellbeing" --limit 50
+npm run ingest -- --source stanford --query "anxiety" --limit 50
+
+# Curated open-access psychology journals, and the psychology subject as a whole
+npm run ingest -- --source journals --query "emotion regulation" --limit 100
+npm run ingest -- --source psychology --query "resilience" --limit 100
+
 # Your own CC-licensed textbooks/PDFs: drop files in ./corpus/ then:
 npm run ingest -- --source openTextbook
 ```
 
+### Available sources
+
+| Source | What it pulls |
+| --- | --- |
+| `europepmc` | Open-access full text / abstracts from Europe PMC / PubMed Central |
+| `doaj` | Article metadata + abstracts from the Directory of Open Access Journals |
+| `harvard` | Open-access research authored at Harvard (via OpenAlex) |
+| `stanford` | Open-access research authored at Stanford (via OpenAlex) |
+| `journals` | A curated set of reputable open-access psychology journals (see `src/lib/rag/sources/journals.ts`) |
+| `psychology` | Open-access works under the OpenAlex "Psychology" subject |
+| `openTextbook` | CC-licensed files you place in `./corpus/` (PDF/TXT/MD/HTML) |
+
 Flags: `--source`, `--query`, `--limit`, `--dry-run`. Ingestion is idempotent
 (documents upsert on `source` + `externalId`). The first run downloads the local
 embedding model (~tens of MB).
+
+The OpenAlex-backed sources (`harvard`, `stanford`, `journals`, `psychology`)
+index titles + abstracts by default. Set `OPENALEX_FULLTEXT=1` to also best-effort
+fetch open-access PDFs (slower), and `OPENALEX_MAILTO` to your email to use
+OpenAlex's faster "polite pool".
 
 > Only ingest material whose license permits storage/reuse. License and source
 > URL are recorded per document.
