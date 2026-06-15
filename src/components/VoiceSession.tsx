@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useTts } from "@/hooks/useTts";
-import { VoiceOrb } from "./VoiceOrb";
 import { LiveCaption } from "./LiveCaption";
 import { CrisisCard } from "./CrisisCard";
 import { BackgroundShader } from "./BackgroundShader";
