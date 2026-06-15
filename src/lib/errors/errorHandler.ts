@@ -270,7 +270,13 @@ export function getStatusCode(error: unknown): number {
 
 /**
  * Generate a unique request ID for error tracing.
+ * Uses crypto.randomUUID when available, falls back to timestamp-based ID.
  */
 export function generateRequestId(): string {
-  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  try {
+    const { randomUUID } = require("crypto");
+    return randomUUID();
+  } catch {
+    return `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  }
 }

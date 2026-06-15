@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { generateRequestId } from "@/lib/errors/errorHandler";
 
 /**
  * Structured logging utility that integrates with Sentry
@@ -231,6 +232,30 @@ class Logger {
   }
 
   /**
+<<<<<<< HEAD
+=======
+   * Track authentication event
+   */
+  trackAuthEvent(
+    event: string,
+    userId: string,
+    data?: Record<string, unknown>
+  ): void {
+    Sentry.addBreadcrumb({
+      category: "auth",
+      message: event,
+      level: "info",
+      data: {
+        event,
+        userId,
+        ...data,
+        requestId: this.context.requestId,
+      },
+    });
+  }
+
+  /**
+>>>>>>> 7f5a183 (Remove duplicate code and consolidate generateRequestId utility)
    * Flush any pending logs to Sentry
    */
   async flush(timeout: number = 2000): Promise<boolean> {
@@ -268,17 +293,6 @@ class Logger {
         requestId: this.context.requestId,
       },
     });
-  }
-
-  private generateRequestId(): string {
-    // Use crypto.randomUUID if available, fallback to uuid v4
-    try {
-      const { randomUUID } = require("crypto");
-      return randomUUID();
-    } catch {
-      // Fallback implementation for generating a UUID-like string
-      return `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    }
   }
 }
 
