@@ -1,0 +1,35 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# env
+.env
+.env.local
+.env*.local
+
+# prisma local model cache / sqlite (we use postgres, but keep dev artifacts out)
+/.cache
+/models
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# os / editor
+.DS_Store
+*.pem
+.vscode/
+.idea/
+
+# vitest
+/coverage

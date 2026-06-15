@@ -1,0 +1,21 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: psych-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: psych
+      POSTGRES_PASSWORD: psych
+      POSTGRES_DB: psych
+    ports:
+      - "5432:5432"
+    volumes:
+      - psych-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psych -d psych"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  psych-pgdata:

@@ -1,0 +1,78 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+enum Role {
+  user
+  assistant
+  system
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  title     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id         String          @id @default(cuid())
+  sessionId  String
+  session    Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role       Role
+  content    String          @db.Text
+  createdAt  DateTime        @default(now())
+  // Safety + provenance metadata.
+  crisisFlag Boolean         @default(false)
+  provider   String?
+  model      String?
+  sources    MessageSource[]
+
+  @@index([sessionId, createdAt])
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  title      String
+  authors    String?
+  source     String // connector id, e.g. "europepmc", "doaj", "openTextbook"
+  externalId String?
+  url        String?
+  license    String?
+  createdAt  DateTime @default(now())
+  chunks     Chunk[]
+
+  @@unique([source, externalId])
+}
+
+model Chunk {
+  id         String                       @id @default(cuid())
+  documentId String
+  document   Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  ordinal    Int
+  content    String                       @db.Text
+  // 384-dim vector — must match EMBEDDING_MODEL output. HNSW index added via migration SQL.
+  embedding  Unsupported("vector(384)")?
+  createdAt  DateTime                     @default(now())
+  sources    MessageSource[]
+
+  @@index([documentId, ordinal])
+}
+
+model MessageSource {
+  id        String  @id @default(cuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chunkId   String
+  chunk     Chunk   @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, chunkId])
+}
