@@ -7,6 +7,7 @@ import { LiveCaption } from "./LiveCaption";
 import { CrisisCard } from "./CrisisCard";
 import { BackgroundShader } from "./BackgroundShader";
 import type { CrisisResource } from "@/lib/prompt/crisisResources";
+import { createSpeechQueueController } from "@/lib/voice/speechQueue";
 
 // Note: BackgroundShader is imported but keeping background clean for now
 
@@ -127,16 +128,11 @@ export function VoiceSession({ sessionId }: { sessionId: string }) {
         let fullReply = "";
         let buffer = "";
         let spokenIndex = 0;
-        const sentenceQueue: string[] = [];
-
-        const processQueue = () => {
-          if (sentenceQueue.length === 0) {
-            return;
-          }
-          const next = sentenceQueue.shift()!;
-          setOrb("speaking");
-          synthesis.speak(next, () => processQueue());
-        };
+        const speechQueue = createSpeechQueueController({
+          onSpeaking: () => setOrb("speaking"),
+          speak: (sentence, onDone) => synthesis.speak(sentence, onDone),
+          onQueueDrainedAfterStream: resumeListening,
+        });
 
         while (true) {
           const { done, value } = await reader.read();
@@ -164,11 +160,11 @@ export function VoiceSession({ sessionId }: { sessionId: string }) {
                   .match(/[^.!?]+[.!?]+/g);
                 if (sentences) {
                   for (const s of sentences) {
-                    sentenceQueue.push(s.trim());
+                    speechQueue.enqueue(s.trim());
                     spokenIndex += s.length;
                   }
-                  if (!synthesis.isSpeaking && sentenceQueue.length > 0) {
-                    processQueue();
+                  if (!speechQueue.isSpeaking() && speechQueue.pendingCount() > 0) {
+                    speechQueue.processQueue();
                   }
                 }
               }
@@ -180,13 +176,14 @@ export function VoiceSession({ sessionId }: { sessionId: string }) {
 
         const finalLeftover = fullReply.slice(spokenIndex).trim();
         if (finalLeftover) {
-          sentenceQueue.push(finalLeftover);
-          if (!synthesis.isSpeaking) processQueue();
+          speechQueue.enqueue(finalLeftover);
+          if (!speechQueue.isSpeaking()) speechQueue.processQueue();
         }
-        
-        if (!synthesis.isSpeaking && sentenceQueue.length === 0) {
-          resumeListening();
-        }
+
+        // Mark the stream as complete after all final text has been queued.
+        // The queue controller resumes listening when the last spoken sentence
+        // finishes, which fixes the stuck-after-final-sentence case.
+        speechQueue.markStreamFinished();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
         resumeListening();
