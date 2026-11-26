@@ -1,0 +1,11 @@
+.git
+node_modules
+.next
+.env
+.env.local
+.env*.local
+corpus
+.cache
+models
+coverage
+/tmp

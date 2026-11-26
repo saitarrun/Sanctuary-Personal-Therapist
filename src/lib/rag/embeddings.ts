@@ -12,7 +12,13 @@ let pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
-      const { pipeline } = await import("@huggingface/transformers");
+      const { pipeline, env } = await import("@huggingface/transformers");
+      // The model is downloaded + cached to disk. On serverless (Vercel) only
+      // /tmp is writable, so point the cache there; honor an explicit override.
+      const cacheDir =
+        process.env.TRANSFORMERS_CACHE ??
+        (process.env.VERCEL ? "/tmp/hf-cache" : undefined);
+      if (cacheDir) env.cacheDir = cacheDir;
       const model = getConfig().EMBEDDING_MODEL;
       return (await pipeline(
         "feature-extraction",
